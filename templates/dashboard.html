@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICT Supply Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar-brand { font-weight: 600; }
+        .low-stock-row { background-color: #fff3cd !important; }
+        .low-stock-badge { font-size: 0.85em; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-hdd-network"></i> Roxas Memorial Provincial Hospital - ICT Inventory
+            </a>
+            <span class="navbar-text text-light">
+                Pending Requests: <span class="badge bg-warning text-dark fs-6" id="navPendingCount">{{ pending_count }}</span>
+            </span>
+        </div>
+    </nav>
+
+    <div id="newRequestBanner" class="alert alert-info alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3 shadow" style="display: none; z-index: 1050; border: 2px solid #0dcaf0;">
+        <strong>🔔 New Request Received!</strong> <a href="/" class="alert-link">Refresh the page</a> to view it.
+        <button type="button" class="btn-close" onclick="document.getElementById('newRequestBanner').style.display='none'"></button>
+    </div>
+
+    <div class="container-fluid px-4">
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="row">
+            <div class="col-md-4 col-lg-3 mb-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0"><i class="bi bi-plus-circle"></i> Register Supply</h5>
+                    </div>
+                    <div class="card-body">
+                        <form action="/add" method="POST">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Item Name</label>
+                                <input type="text" class="form-control" name="name" placeholder="e.g., RJ45 Connectors" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Category</label>
+                                <input type="text" class="form-control" name="category" placeholder="e.g., Networking">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Description</label>
+                                <input type="text" class="form-control" name="description" placeholder="e.g., Cat 6 Pass-through">
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label fw-bold">Initial Qty</label>
+                                    <input type="number" class="form-control" name="quantity" value="0" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label fw-bold">Unit</label>
+                                    <input type="text" class="form-control" name="unit" placeholder="pcs, boxes" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Reorder Level</label>
+                                <input type="number" class="form-control" name="reorder_level" value="10" required>
+                                <div class="form-text">Alerts when stock falls below this.</div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Save Item</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8 col-lg-9">
+                
+                <div class="card shadow-sm border-warning mb-4">
+                    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center py-2">
+                        <h5 class="card-title mb-0 fw-bold"><i class="bi bi-bell-fill"></i> Incoming Requests</h5>
+                        <a href="/portal" target="_blank" class="btn btn-sm btn-outline-dark">View Public Portal</a>
+                    </div>
+                    <div class="card-body p-0 table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Department / Person</th>
+                                    <th>Requested Item</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in requests %}
+                                <tr class="align-middle">
+                                    <td class="small text-muted">{{ req.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>
+                                        <strong>{{ req.department_name }}</strong><br>
+                                        <small class="text-muted"><i class="bi bi-person"></i> {{ req.requested_by }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold">{{ req.quantity }}x</span> {{ req.supply.name }}
+                                        <br><small class="text-muted">Current Stock: {{ req.supply.quantity }}</small>
+                                    </td>
+                                    <td>
+                                        {% if req.status == 'Pending' %}
+                                            <span class="badge bg-warning text-dark">Pending</span>
+                                        {% elif req.status == 'Approved' %}
+                                            <span class="badge bg-success">Approved</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Denied</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if req.status == 'Pending' %}
+                                        <div class="btn-group" role="group">
+                                            <a href="/process-request/{{ req.id }}/approve" class="btn btn-sm btn-success" title="Approve">
+                                                <i class="bi bi-check-lg"></i>
+                                            </a>
+                                            <a href="/process-request/{{ req.id }}/deny" class="btn btn-sm btn-danger" title="Deny">
+                                                <i class="bi bi-x-lg"></i>
+                                            </a>
+                                            <a href="/print-request/{{ req.id }}" target="_blank" class="btn btn-sm btn-secondary" title="Print Request">
+                                                <i class="bi bi-printer"></i>
+                                            </a>
+                                        </div>
+                                        {% else %}
+                                            <span class="text-muted small"><i class="bi bi-shield-check"></i> Processed</span>
+                                            <a href="/print-request/{{ req.id }}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2" title="Print Record">
+                                                <i class="bi bi-printer"></i>
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-3 text-muted">No pending requests.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                        <h5 class="card-title mb-0 fw-bold"><i class="bi bi-box-seam"></i> Current Stock</h5>
+                        <input type="text" id="searchInput" class="form-control w-25" placeholder="Search items...">
+                    </div>
+                    <div class="card-body p-0 table-responsive">
+                        <table class="table table-hover mb-0" id="inventoryTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Item Details</th>
+                                    <th>Category</th>
+                                    <th class="text-center">Stock Level</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items %}
+                                <tr class="{% if item.quantity <= item.reorder_level %}low-stock-row{% endif %} align-middle">
+                                    <td>{{ item.id }}</td>
+                                    <td>
+                                        <strong>{{ item.name }}</strong><br>
+                                        <small class="text-muted">{{ item.description }}</small>
+                                    </td>
+                                    <td><span class="badge bg-secondary">{{ item.category }}</span></td>
+                                    <td class="text-center">
+                                        <h5 class="mb-0">
+                                            {{ item.quantity }} <small class="text-muted fs-6">{{ item.unit }}</small>
+                                        </h5>
+                                        {% if item.quantity <= item.reorder_level %}
+                                            <span class="badge bg-danger low-stock-badge mt-1">Low Stock</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form action="/update/{{ item.id }}" method="POST" class="d-flex align-items-center mb-1">
+                                            <div class="input-group input-group-sm w-75">
+                                                <input type="number" class="form-control" name="adjustment" placeholder="+ / -" required>
+                                                <button class="btn btn-outline-secondary" type="submit">Update</button>
+                                            </div>
+                                        </form>
+                                        <a href="/delete/{{ item.id }}" class="text-danger small text-decoration-none" onclick="return confirm('Are you sure you want to delete {{ item.name }}?')">
+                                            <i class="bi bi-trash"></i> Delete
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">
+                                        <i class="bi bi-inbox fs-2"></i><br>
+                                        No items found in the inventory.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+
+        <footer class="text-center mt-5 mb-4 text-muted small">
+            <p>System v1.0 • Designed for optimal uptime. Powered by perfectly crimped Cat 6 cables.</p>
+        </footer>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // --- 1. Live Search ---
+        document.getElementById('searchInput').addEventListener('keyup', function() {
+            let filter = this.value.toLowerCase();
+            let rows = document.querySelectorAll('#inventoryTable tbody tr');
+            
+            rows.forEach(row => {
+                if(row.cells.length === 1) return; 
+                let text = row.innerText.toLowerCase();
+                row.style.display = text.includes(filter) ? '' : 'none';
+            });
+        });
+
+        // --- 2. Background Poller ---
+        let currentPendingCount = parseInt("{{ pending_count }}") || 0;
+
+        setInterval(() => {
+            fetch('/api/pending-count')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.count > currentPendingCount) {
+                        document.getElementById('newRequestBanner').style.display = 'block';
+                        document.getElementById('navPendingCount').innerText = data.count;
+                        currentPendingCount = data.count; 
+                    }
+                })
+                .catch(err => console.error("Polling error:", err));
+        }, 5000);
+    </script>
+</body>
+</html>

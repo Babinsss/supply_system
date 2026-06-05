@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Print RIS Form - {{ req.department_name }}</title>
+    <style>
+        /* --- PRINT MARGINS --- */
+        @page {
+            size: letter portrait;
+            margin: 0.25in; 
+        }
+        
+        /* --- WEB VIEWER UI ENHANCEMENTS --- */
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px; 
+            color: #000;
+            background-color: #525659; /* Dark PDF-viewer background */
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Fixed Toolbar */
+        .print-toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: #323639;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .btn-action {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-print {
+            background-color: #8ab4f8;
+            color: #202124;
+        }
+
+        .btn-print:hover { background-color: #aecbfa; }
+
+        .btn-back {
+            background-color: transparent;
+            color: #e8eaed;
+            border: 1px solid #5f6368;
+        }
+
+        .btn-back:hover { background-color: #3c4043; }
+
+        /* Simulated Physical Paper */
+        .paper-preview {
+            background-color: #fff;
+            width: 8.5in;
+            height: 10.5in; /* Standard Letter size minus margins */
+            margin: 90px auto 30px auto; 
+            padding: 0.25in; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        /* --- EXACT REPLICA FORM COMPONENTS --- */
+        .form-container {
+            width: 100%;
+            height: 4.85in; 
+            border: 2px solid #000;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; 
+        }
+
+        .cut-line {
+            border-top: 1px dashed #888;
+            margin: 0.15in 0;
+            width: 100%;
+            text-align: center;
+            font-size: 9px;
+            color: #555;
+            letter-spacing: 2px;
+        }
+
+        .header-table {
+            display: flex;
+            height: 75px; 
+        }
+
+        .header-col-1 {
+            width: 16%;
+            border-right: 1px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+        }
+
+        .header-col-2 {
+            width: 57%;
+            border-right: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-title-box {
+            flex-grow: 1;
+            border-bottom: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .doc-title-label {
+            position: absolute;
+            top: 3px;
+            left: 5px;
+            font-size: 8px;
+        }
+
+        .doc-title-text {
+            margin: 0;
+            margin-top: 6px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .header-docno-box {
+            height: 20px;
+            display: flex;
+            align-items: center;
+            padding-left: 6px;
+            font-size: 10px;
+        }
+
+        .header-col-3 {
+            width: 12%;
+            border-right: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .rev-label {
+            font-size: 8px;
+            margin-bottom: 2px;
+        }
+
+        .rev-value {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .header-col-4 {
+            width: 15%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2px;
+        }
+
+        .philhealth-text {
+            font-size: 7px;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 2px;
+            line-height: 1.1;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; 
+        }
+
+        .info-section {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            border-top: 1px solid #000;
+            border-bottom: 2px solid #000;
+            font-weight: bold;
+            font-size: 10px; 
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            flex-grow: 1; 
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 5px;
+            text-align: center;
+            font-size: 9px; 
+        }
+
+        th {
+            background-color: #f8f8f8;
+            font-weight: bold;
+            -webkit-print-color-adjust: exact;
+            font-size: 9px; 
+        }
+
+        .col-code { width: 8%; }
+        .col-unit { width: 8%; }
+        .col-desc { width: 40%; text-align: left; }
+        .col-qty { width: 8%; }
+        .col-avail { width: 10%; }
+        .col-bal { width: 10%; }
+        .col-rem { width: 16%; }
+
+        .purpose-section {
+            display: flex;
+            border-bottom: 2px solid #000;
+            border-top: 2px solid #000;
+            font-size: 9px; 
+        }
+
+        .purpose-label {
+            width: 90px;
+            padding: 5px;
+            font-weight: bold;
+            border-right: 1px solid #000;
+        }
+
+        .purpose-content {
+            padding: 5px;
+            flex-grow: 1;
+        }
+
+        .signature-grid {
+            display: flex;
+            width: 100%;
+            border-bottom: 2px solid #000;
+        }
+
+        .sig-col {
+            flex: 1;
+            border-right: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sig-col:last-child { border-right: none; }
+
+        .sig-header {
+            padding: 3px;
+            border-bottom: 1px solid #000;
+            font-weight: bold;
+            font-size: 8px; 
+        }
+
+        .sig-row {
+            display: flex;
+            border-bottom: 1px solid #000;
+            min-height: 24px; 
+        }
+        .sig-row:last-child { border-bottom: none; }
+
+        .sig-label {
+            width: 70px;
+            padding: 2px 4px;
+            border-right: 1px solid #000;
+            font-size: 7px; 
+            display: flex;
+            align-items: center;
+        }
+
+        .sig-value {
+            padding: 2px;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 8px; 
+        }
+
+        .supply-section-title {
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            padding: 4px;
+            font-weight: bold;
+            font-size: 9px; 
+            -webkit-print-color-adjust: exact;
+        }
+
+        .blank-space { height: 16px; } 
+        
+        /* --- MAGIC PRINT STYLES --- */
+        @media print {
+            body { background-color: transparent; }
+            .print-toolbar { display: none !important; }
+            .paper-preview {
+                box-shadow: none; 
+                margin: 0;
+                padding: 0; 
+                width: 100%;
+                height: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="print-toolbar no-print">
+        <button class="btn-action btn-print" onclick="window.print()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>
+                <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"/>
+            </svg>
+            Print Form
+        </button>
+        <a href="/" class="btn-action btn-back">Return to Dashboard</a>
+    </div>
+
+    <div class="paper-preview">
+
+        {% for copy in range(2) %}
+        
+        <div class="form-container">
+            <div class="header-table">
+                <div class="header-col-1">
+                    <div class="logo-container" style="width: 60px; height: 60px;">
+                        <img src="{{ url_for('static', filename='capiz.jpg') }}" alt="Capiz Logo">
+                    </div>
+                </div>
+                
+                <div class="header-col-2">
+                    <div class="header-title-box">
+                        <span class="doc-title-label">Document Title:</span>
+                        <h3 class="doc-title-text">REQUISITION AND ISSUE SLIP (RIS) FORM</h3>
+                    </div>
+                    <div class="header-docno-box">
+                        Document No: RMH-PPS-F01
+                    </div>
+                </div>
+                
+                <div class="header-col-3">
+                    <span class="rev-label">Rev No</span>
+                    <span class="rev-value">00</span>
+                </div>
+                
+                <div class="header-col-4">
+                    <div class="logo-container" style="width: 46px; height: 46px;">
+                        <img src="{{ url_for('static', filename='rmph.jpg') }}" alt="RMPH Logo">
+                    </div>
+                    <div class="philhealth-text">PHILHEALTH<br>ACCREDITED</div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <div>Department/Section/Unit: <span style="text-decoration: underline; text-transform: uppercase;">{{ req.department_name }}</span></div>
+                <div>Date: <span style="text-decoration: underline;">{{ req.created_at.strftime('%B %d, %Y') }}</span></div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th class="col-code">Stock Code</th>
+                        <th class="col-unit">Unit</th>
+                        <th class="col-desc">Description</th>
+                        <th class="col-qty">Qty.</th>
+                        <th class="col-avail">Available<br>Stock</th>
+                        <th class="col-bal">Balance<br>Stock</th>
+                        <th class="col-rem">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ req.supply.id }}</td>
+                        <td>{{ req.supply.unit }}</td>
+                        <td class="col-desc" style="font-weight: bold;">{{ req.supply.name }} <br><span style="font-weight: normal; font-size: 8px;">{{ req.supply.description }}</span></td>
+                        <td style="font-weight: bold; font-size: 12px;">{{ req.quantity }}</td>
+                        <td>{{ req.supply.quantity }}</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    <tr><td><div class="blank-space"></div></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td><div class="blank-space"></div></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                    <tr><td><div class="blank-space"></div></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                </tbody>
+            </table>
+
+            <div class="purpose-section">
+                <div class="purpose-label">PURPOSE</div>
+                <div class="purpose-content">{{ req.purpose }} <span style="font-size: 7px; color: #666;">(Req ID: #{{ req.id }})</span></div>
+            </div>
+
+            <div class="signature-grid">
+                <div class="sig-col">
+                    <div class="sig-header">Requested by:</div>
+                    <div class="sig-row"><div class="sig-label">Signature</div><div class="sig-value"></div></div>
+                    <div class="sig-row"><div class="sig-label">Printed Name</div><div class="sig-value">{{ req.requested_by }}</div></div>
+                    <div class="sig-row" style="border-bottom:none;"><div class="sig-label">Designation</div><div class="sig-value"></div></div>
+                </div>
+                <div class="sig-col">
+                    <div class="sig-header">Approved by:</div>
+                    <div class="sig-row"><div class="sig-label">Signature</div><div class="sig-value"></div></div>
+                    <div class="sig-row"><div class="sig-label">Printed Name</div><div class="sig-value" style="font-size: 7px; line-height: 1.2;">Chief of Hospital II /<br>Hospital Administrator</div></div>
+                    <div class="sig-row" style="border-bottom:none;"><div class="sig-label">Designation</div><div class="sig-value"></div></div>
+                </div>
+                <div class="sig-col">
+                    <div class="sig-header">Issued by:</div>
+                    <div class="sig-row"><div class="sig-label">Signature</div><div class="sig-value"></div></div>
+                    <div class="sig-row"><div class="sig-label">Printed Name</div><div class="sig-value"></div></div>
+                    <div class="sig-row" style="border-bottom:none;"><div class="sig-label">Designation</div><div class="sig-value"></div></div>
+                </div>
+                <div class="sig-col">
+                    <div class="sig-header">Received by:</div>
+                    <div class="sig-row"><div class="sig-label">Signature</div><div class="sig-value"></div></div>
+                    <div class="sig-row"><div class="sig-label">Printed Name</div><div class="sig-value"></div></div>
+                    <div class="sig-row" style="border-bottom:none;"><div class="sig-label">Designation</div><div class="sig-value"></div></div>
+                </div>
+            </div>
+
+            <div class="supply-section-title">FOR SUPPLY SECTION ONLY</div>
+            <div class="signature-grid" style="border-bottom: none;">
+                <div class="sig-col">
+                    <div class="sig-header">Encoded/Posted by:</div>
+                    <div class="sig-row"><div class="sig-label">Signature</div><div class="sig-value"></div></div>
+                    <div class="sig-row" style="border-bottom:none;"><div class="sig-label">Printed Name</div><div class="sig-value"></div></div>
+                </div>
+                <div class="sig-col">
+                    <div class="sig-header">Checked/Validated by:</div>
+                    <div class="sig-row"><div class="sig-label">Signature</div><div class="sig-value"></div></div>
+                    <div class="sig-row" style="border-bottom:none;"><div class="sig-label">Printed Name</div><div class="sig-value"></div></div>
+                </div>
+                <div class="sig-col">
+                    <div class="sig-header">Released by:</div>
+                    <div class="sig-row"><div class="sig-label">Signature</div><div class="sig-value"></div></div>
+                    <div class="sig-row" style="border-bottom:none;"><div class="sig-label">Printed Name</div><div class="sig-value"></div></div>
+                </div>
+            </div>
+
+        </div>
+
+        {% if copy == 0 %}
+            <div class="cut-line">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ✂</div>
+        {% endif %}
+
+        {% endfor %}
+
+    </div>
+
+    <script>
+        window.onload = function() {
+            setTimeout(function() {
+                window.print();
+            }, 500);
+        };
+    </script>
+</body>
+</html>
