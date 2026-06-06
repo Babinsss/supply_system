@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ICT Supply Dashboard</title>
+    <title>Supply Section Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
@@ -18,7 +18,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container-fluid">
             <a class="navbar-brand" href="/">
-                <i class="bi bi-hdd-network"></i> Roxas Memorial Provincial Hospital - ICT Inventory
+                <i class="bi bi-hdd-network"></i> Roxas Memorial Provincial Hospital - Supply Dashboard
             </a>
             <span class="navbar-text text-light">
                 Pending Requests: <span class="badge bg-warning text-dark fs-6" id="navPendingCount">{{ pending_count }}</span>
@@ -86,7 +86,6 @@
             </div>
 
             <div class="col-md-8 col-lg-9">
-                
                 <div class="card shadow-sm border-warning mb-4">
                     <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center py-2">
                         <h5 class="card-title mb-0 fw-bold"><i class="bi bi-bell-fill"></i> Incoming Requests</h5>
@@ -98,50 +97,58 @@
                                 <tr>
                                     <th>Date</th>
                                     <th>Department / Person</th>
-                                    <th>Requested Item</th>
+                                    <th>Requested Items</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for req in requests %}
+                                {% for batch in requests %}
                                 <tr class="align-middle">
-                                    <td class="small text-muted">{{ req.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td class="small text-muted">{{ batch['created_at'].strftime('%Y-%m-%d %H:%M') }}</td>
                                     <td>
-                                        <strong>{{ req.department_name }}</strong><br>
-                                        <small class="text-muted"><i class="bi bi-person"></i> {{ req.requested_by }}</small>
+                                        <strong>{{ batch['department_name'] }}</strong><br>
+                                        <small class="text-muted"><i class="bi bi-person"></i> {{ batch['requested_by'] }}</small>
                                     </td>
                                     <td>
-                                        <span class="fw-bold">{{ req.quantity }}x</span> {{ req.supply.name }}
-                                        <br><small class="text-muted">Current Stock: {{ req.supply.quantity }}</small>
+                                        <ul class="list-unstyled mb-0">
+                                            {% for req in batch['items'] %}
+                                            <li class="mb-1" style="font-size: 0.95em;">
+                                                <span class="fw-bold">{{ req.quantity }}x</span> {{ req.supply.name }}
+                                                <small class="text-muted ms-1">(Stock: {{ req.supply.quantity }})</small>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
                                     </td>
                                     <td>
-                                        {% if req.status == 'Pending' %}
+                                        {% if batch['status'] == 'Pending' %}
                                             <span class="badge bg-warning text-dark">Pending</span>
-                                        {% elif req.status == 'Approved' %}
+                                        {% elif batch['status'] == 'Approved' %}
                                             <span class="badge bg-success">Approved</span>
                                         {% else %}
                                             <span class="badge bg-danger">Denied</span>
                                         {% endif %}
                                     </td>
-                                    <td>
-                                        {% if req.status == 'Pending' %}
+                                   <td>
+                                        {% if batch['status'] == 'Pending' %}
                                         <div class="btn-group" role="group">
-                                            <a href="/process-request/{{ req.id }}/approve" class="btn btn-sm btn-success" title="Approve">
+                                            <a href="/process-batch/{{ batch['batch_id'] }}/approve" class="btn btn-sm btn-success" title="Approve Entire Batch">
                                                 <i class="bi bi-check-lg"></i>
                                             </a>
-                                            <a href="/process-request/{{ req.id }}/deny" class="btn btn-sm btn-danger" title="Deny">
+                                            <a href="/process-batch/{{ batch['batch_id'] }}/deny" class="btn btn-sm btn-danger" title="Deny Entire Batch">
                                                 <i class="bi bi-x-lg"></i>
                                             </a>
-                                            <a href="/print-request/{{ req.id }}" target="_blank" class="btn btn-sm btn-secondary" title="Print Request">
+                                            <a href="/print-bulk/{{ batch['batch_id'] }}" target="_blank" class="btn btn-sm btn-secondary" title="Print Pending Request">
                                                 <i class="bi bi-printer"></i>
                                             </a>
                                         </div>
                                         {% else %}
-                                            <span class="text-muted small"><i class="bi bi-shield-check"></i> Processed</span>
-                                            <a href="/print-request/{{ req.id }}" target="_blank" class="btn btn-sm btn-outline-secondary ms-2" title="Print Record">
-                                                <i class="bi bi-printer"></i>
-                                            </a>
+                                            <div class="d-flex align-items-center">
+                                                <span class="text-muted small me-2"><i class="bi bi-shield-check"></i> Processed</span>
+                                                <a href="/print-bulk/{{ batch['batch_id'] }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Print Approved/Denied Record">
+                                                    <i class="bi bi-printer"></i> Print
+                                                </a>
+                                            </div>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -212,20 +219,17 @@
                         </table>
                     </div>
                 </div>
-                
             </div>
         </div>
 
         <footer class="text-center mt-5 mb-4 text-muted small">
-            <p>System v1.0 • Designed for optimal uptime. Powered by perfectly crimped Cat 6 cables.</p>
+            <p>CODED BY VINCENT A. BARRIENTOS BSIT FILAMER CHRISTIAN UNIVERSITY INC.</p>
         </footer>
-
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
     <script>
-        // --- 1. Live Search ---
+        // Live Search
         document.getElementById('searchInput').addEventListener('keyup', function() {
             let filter = this.value.toLowerCase();
             let rows = document.querySelectorAll('#inventoryTable tbody tr');
@@ -237,9 +241,8 @@
             });
         });
 
-        // --- 2. Background Poller ---
+        // Background Poller
         let currentPendingCount = parseInt("{{ pending_count }}") || 0;
-
         setInterval(() => {
             fetch('/api/pending-count')
                 .then(response => response.json())

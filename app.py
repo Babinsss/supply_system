@@ -1,11 +1,10 @@
+import uuid
+import json
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash
 from datetime import datetime
 
 app = Flask(__name__)
-
-# --- CONFIGURATION ---
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///supplies.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = 'super_secret_key_change_this_later'
@@ -13,7 +12,6 @@ app.secret_key = 'super_secret_key_change_this_later'
 db = SQLAlchemy(app)
 
 # --- DATABASE MODELS ---
-
 class Supply(db.Model):
     __tablename__ = 'supplies'
     id = db.Column(db.Integer, primary_key=True)
@@ -26,48 +24,56 @@ class Supply(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    def __repr__(self):
-        return f'<Supply {self.name}>'
-
-class User(db.Model):
-    __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False) 
-
-    def __repr__(self):
-        return f'<User {self.email}>'
-
 class DepartmentRequest(db.Model):
     __tablename__ = 'department_requests'
     id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.String(50), nullable=False)
     department_name = db.Column(db.String(100), nullable=False)
     requested_by = db.Column(db.String(100), nullable=False)
     supply_id = db.Column(db.Integer, db.ForeignKey('supplies.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
-    purpose = db.Column(db.String(255), nullable=False) # NEW PURPOSE FIELD
+    purpose = db.Column(db.String(255), nullable=False)
     status = db.Column(db.String(20), default='Pending') 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
     supply = db.relationship('Supply', backref=db.backref('requests', lazy=True))
 
-    def __repr__(self):
-        return f'<Request {self.department_name} - {self.quantity}x>'
-
 # --- ADMIN ROUTES ---
-
 @app.route('/')
+def index():
+    return redirect(url_for('dashboard'))
+
+@app.route('/dashboard')
 def dashboard():
     supplies = Supply.query.all()
-    pending_count = DepartmentRequest.query.filter_by(status='Pending').count()
-    admin_requests = DepartmentRequest.query.order_by(DepartmentRequest.created_at.desc()).all()
+    
+    # Fetch all requests sorted by newest first
+    all_requests = DepartmentRequest.query.order_by(DepartmentRequest.created_at.desc()).all()
+    
+    # Group the requests by batch_id so they appear as one transaction
+    grouped_batches = {}
+    for req in all_requests:
+        if req.batch_id not in grouped_batches:
+            grouped_batches[req.batch_id] = {
+                'batch_id': req.batch_id,
+                'created_at': req.created_at,
+                'department_name': req.department_name,
+                'requested_by': req.requested_by,
+                'status': req.status,
+                'items': []
+            }
+        grouped_batches[req.batch_id]['items'].append(req)
+    
+    # Convert dictionary to list for the HTML template
+    requests_to_display = list(grouped_batches.values())
+    
+    # Count how many unique batches are pending
+    pending_count = len([b for b in requests_to_display if b['status'] == 'Pending'])
     
     return render_template(
         'dashboard.html', 
         items=supplies, 
-        pending_count=pending_count,
-        requests=admin_requests
+        requests=requests_to_display,
+        pending_count=pending_count
     )
 
 @app.route('/add', methods=['POST'])
@@ -99,8 +105,7 @@ def update_stock(id):
     
     if adjustment is not None:
         item.quantity += adjustment
-        if item.quantity < 0:
-            item.quantity = 0
+        if item.quantity < 0: item.quantity = 0
         db.session.commit()
         flash(f'Stock updated successfully for {item.name}!', 'success')
         
@@ -114,59 +119,45 @@ def delete_item(id):
     flash('Item successfully deleted.', 'success')
     return redirect(url_for('dashboard'))
 
-@app.route('/setup-admin')
-def setup_admin():
-    try:
-        existing_admin = User.query.filter_by(email='admin@hospital.com').first()
-        if existing_admin:
-            return 'Admin account already exists.'
-
-        hashed_password = generate_password_hash('password')
-        admin = User(name='Admin', email='admin@hospital.com', password=hashed_password)
-        db.session.add(admin)
-        db.session.commit()
-        return 'SUCCESS! Admin account created. You can now login.'
-    except Exception as e:
-        db.session.rollback()
-        return f'Error: {str(e)}'
-
-@app.route('/process-request/<int:req_id>/<action>')
-def process_request(req_id, action):
-    req = DepartmentRequest.query.get_or_404(req_id)
+@app.route('/process-batch/<batch_id>/<action>')
+def process_batch(batch_id, action):
+    batch_reqs = DepartmentRequest.query.filter_by(batch_id=batch_id).all()
     
-    if req.status != 'Pending':
+    if not batch_reqs:
+        flash('Request not found.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    if batch_reqs[0].status != 'Pending':
         flash('This request has already been processed.', 'warning')
         return redirect(url_for('dashboard'))
 
     if action == 'approve':
-        if req.supply.quantity >= req.quantity:
-            req.supply.quantity -= req.quantity 
+        # Verify stock for ALL items before approving anything
+        for req in batch_reqs:
+            if req.supply.quantity < req.quantity:
+                flash(f'Cannot approve! Not enough stock for {req.supply.name}.', 'danger')
+                return redirect(url_for('dashboard'))
+        
+        # If stock is verified, deduct quantities and approve the batch
+        for req in batch_reqs:
+            req.supply.quantity -= req.quantity
             req.status = 'Approved'
-            flash(f'Request approved. {req.quantity} {req.supply.unit} deducted from {req.supply.name}.', 'success')
-        else:
-            flash(f'Cannot approve! Not enough stock for {req.supply.name}.', 'danger')
-            return redirect(url_for('dashboard'))
+        flash('Bulk request approved and stock updated!', 'success')
             
     elif action == 'deny':
-        req.status = 'Denied'
-        flash('Request denied. Stock remains unchanged.', 'success')
+        for req in batch_reqs:
+            req.status = 'Denied'
+        flash('Bulk request denied. Stock remains unchanged.', 'success')
 
     db.session.commit()
     return redirect(url_for('dashboard'))
 
-# --- REAL-TIME & PRINT ROUTES ---
-
+# --- REAL-TIME & PORTAL ROUTES ---
 @app.route('/api/pending-count')
 def pending_count_api():
-    count = DepartmentRequest.query.filter_by(status='Pending').count()
-    return jsonify({'count': count})
-
-@app.route('/print-request/<int:req_id>')
-def print_request(req_id):
-    req = DepartmentRequest.query.get_or_404(req_id)
-    return render_template('print_template.html', req=req)
-
-# --- DEPARTMENT PORTAL ROUTES ---
+    # Count unique pending batches for the live notification
+    pending_batches = db.session.query(DepartmentRequest.batch_id).filter_by(status='Pending').distinct().all()
+    return jsonify({'count': len(pending_batches)})
 
 @app.route('/portal')
 def department_portal():
@@ -175,28 +166,39 @@ def department_portal():
 
 @app.route('/submit-request', methods=['POST'])
 def submit_request():
-    department = request.form.get('department_name')
+    dept = request.form.get('department_name')
     person = request.form.get('requested_by')
-    supply_id = request.form.get('supply_id', type=int)
-    quantity = request.form.get('quantity', type=int)
-    purpose = request.form.get('purpose') # CAPTURE NEW FIELD
+    purpose = request.form.get('purpose')
+    cart_json = request.form.get('cart_data', '[]')
+    
+    try:
+        cart_data = json.loads(cart_json)
+    except json.JSONDecodeError:
+        cart_data = []
 
-    if not department or not person or not supply_id or not quantity or not purpose:
-        flash('All fields are required to submit a request.', 'danger')
+    if not cart_data:
+        flash('Please add items to your cart before submitting.', 'danger')
         return redirect(url_for('department_portal'))
 
-    new_request = DepartmentRequest(
-        department_name=department,
-        requested_by=person,
-        supply_id=supply_id,
-        quantity=quantity,
-        purpose=purpose # SAVE TO DB
-    )
-    db.session.add(new_request)
+    batch_id = str(uuid.uuid4())
+    for item in cart_data:
+        new_req = DepartmentRequest(
+            batch_id=batch_id, department_name=dept, requested_by=person,
+            supply_id=int(item['id']), quantity=int(item['qty']), purpose=purpose
+        )
+        db.session.add(new_req)
+        
     db.session.commit()
     
-    flash('Request submitted successfully! ICT will review it shortly.', 'success')
+    flash('Your bulk request has been successfully submitted to ICT.', 'success')
     return redirect(url_for('department_portal'))
+
+@app.route('/print-bulk/<batch_id>')
+def print_bulk(batch_id):
+    batch_requests = DepartmentRequest.query.filter_by(batch_id=batch_id).all()
+    if not batch_requests:
+        return "Batch not found", 404
+    return render_template('print_template.html', batch_requests=batch_requests)
 
 if __name__ == '__main__':
     with app.app_context():

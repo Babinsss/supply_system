@@ -11,9 +11,7 @@
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4 shadow-sm">
         <div class="container">
-            <a class="navbar-brand" href="/portal">
-                RMPH Department Request Portal
-            </a>
+            <a class="navbar-brand" href="/portal">RMPH Department Request Portal</a>
             <span class="navbar-text text-light">ICT Operations</span>
         </div>
     </nav>
@@ -33,35 +31,44 @@
         <div class="row">
             <div class="col-md-4 mb-4">
                 <div class="card shadow-sm border-0">
-                    <div class="card-header bg-white"><h5 class="mb-0 fw-bold">Submit a Request</h5></div>
+                    <div class="card-header bg-white"><h5 class="mb-0 fw-bold">Submit Bulk Request</h5></div>
                     <div class="card-body">
-                        <form action="/submit-request" method="POST">
+                        <form action="/submit-request" method="POST" id="requestForm" onsubmit="return validateCart()">
                             <div class="mb-3">
                                 <label class="form-label">Department Name</label>
-                                <input type="text" class="form-control" name="department_name" placeholder="e.g., ER, OPD, Billing" required>
+                                <input type="text" class="form-control" name="department_name" placeholder="e.g., ER, OPD" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Requested By</label>
                                 <input type="text" class="form-control" name="requested_by" placeholder="Your Name" required>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Select Supply</label>
-                                <select class="form-select" name="supply_id" required>
+                            
+                            <div class="border p-3 bg-light mb-3 rounded">
+                                <label class="form-label fw-bold">Add Items to List</label>
+                                <select id="supplySelect" class="form-select mb-2">
                                     <option value="" disabled selected>Choose an item...</option>
                                     {% for item in supplies %}
-                                        <option value="{{ item.id }}">{{ item.name }} ({{ item.quantity }} available)</option>
+                                        <option value="{{ item.id }}" data-name="{{ item.name }}">
+                                            {{ item.name }} | {{ item.category }} | {{ item.description }} ({{ item.quantity }} available)
+                                        </option>
                                     {% endfor %}
                                 </select>
+                                <input type="number" id="qtyInput" class="form-control" placeholder="Quantity">
+                                <button type="button" class="btn btn-secondary mt-2 w-100" onclick="addItem()">Add to Cart</button>
                             </div>
+
+                            <table class="table table-sm table-bordered mb-3" id="cartTable">
+                                <thead><tr><th>Item</th><th>Qty</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                            
                             <div class="mb-3">
-                                <label class="form-label">Quantity Needed</label>
-                                <input type="number" class="form-control" name="quantity" min="1" required>
-                            </div>
-                            <div class="mb-4">
                                 <label class="form-label">Purpose of Request</label>
-                                <textarea class="form-control" name="purpose" rows="2" placeholder="Briefly explain why this item is needed..." required></textarea>
+                                <textarea class="form-control" name="purpose" rows="2" required placeholder="Reason for request..."></textarea>
                             </div>
-                            <button type="submit" class="btn btn-primary w-100">Send Request to ICT</button>
+
+                            <input type="hidden" name="cart_data" id="cartData">
+                            <button type="submit" class="btn btn-primary w-100">Submit & Print RIS Form</button>
                         </form>
                     </div>
                 </div>
@@ -72,13 +79,7 @@
                     <div class="card-header bg-white"><h5 class="mb-0 fw-bold">Available Stock List</h5></div>
                     <div class="card-body p-0">
                         <table class="table table-striped mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Item</th>
-                                    <th>Category</th>
-                                    <th>Available Qty</th>
-                                </tr>
-                            </thead>
+                            <thead><tr><th>Item</th><th>Category</th><th>Available Qty</th></tr></thead>
                             <tbody>
                                 {% for item in supplies %}
                                 <tr>
@@ -99,6 +100,38 @@
             </div>
         </div>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let cart = [];
+        function addItem() {
+            let sel = document.getElementById('supplySelect');
+            let qty = document.getElementById('qtyInput').value;
+            
+            if(!sel.value || !qty || qty < 1) {
+                alert("Please select a valid item and enter a quantity.");
+                return;
+            }
+            
+            let itemName = sel.options[sel.selectedIndex].dataset.name;
+            cart.push({id: sel.value, name: itemName, qty: qty});
+            
+            document.getElementById('cartData').value = JSON.stringify(cart);
+            let tbody = document.querySelector("#cartTable tbody");
+            tbody.innerHTML += `<tr><td>${itemName}</td><td>${qty}</td></tr>`;
+            
+            // Reset fields
+            sel.value = "";
+            document.getElementById('qtyInput').value = '';
+        }
+
+        function validateCart() {
+            if(cart.length === 0) {
+                alert("You must add at least one item to your cart before submitting.");
+                return false;
+            }
+            return true;
+        }
+    </script>
 </body>
 </html>
