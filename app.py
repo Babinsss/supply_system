@@ -119,6 +119,20 @@ def delete_item(id):
     flash('Item successfully deleted.', 'success')
     return redirect(url_for('dashboard'))
 
+# --- NEW STOCKCARD ROUTE ---
+@app.route('/stockcard/<int:item_id>')
+def stockcard(item_id):
+    # Fetch the specific supply item
+    item = Supply.query.get_or_404(item_id)
+    
+    # Fetch all APPROVED requests for this specific item (these are your releases)
+    releases = DepartmentRequest.query.filter_by(
+        supply_id=item_id, 
+        status='Approved'
+    ).order_by(DepartmentRequest.created_at.desc()).all()
+    
+    return render_template('stockcard.html', item=item, releases=releases)
+
 @app.route('/process-batch/<batch_id>/<action>')
 def process_batch(batch_id, action):
     batch_reqs = DepartmentRequest.query.filter_by(batch_id=batch_id).all()

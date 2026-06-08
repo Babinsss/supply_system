@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stockcard - {{ item.name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f8f9fa; }
+        
+        /* --- PRINT SPECIFIC STYLES --- */
+        @media print {
+            @page {
+                size: letter portrait;
+                margin: 0.5in; /* Clean 0.5 inch margins around the paper */
+            }
+            body { 
+                background-color: white; 
+                padding: 0; 
+                margin: 0; 
+                color: #000; /* Force black text for better contrast */
+            }
+            .no-print { display: none !important; }
+            
+            /* Remove card styling for a clean document look */
+            .card { border: none !important; box-shadow: none !important; }
+            
+            /* Transform the dark header into a formal document header */
+            .card-header {
+                background-color: transparent !important;
+                color: #000 !important;
+                border-bottom: 2px solid #000 !important;
+                padding: 0 0 10px 0 !important;
+                margin-bottom: 20px !important;
+            }
+            
+            /* FIX THE SCROLLBAR ISSUE */
+            .table-responsive { 
+                overflow-x: visible !important; 
+            }
+            
+            /* Enhance Table Readability on Paper */
+            table { 
+                width: 100% !important; 
+                border-collapse: collapse !important; 
+            }
+            th, td { 
+                border: 1px solid #000 !important; 
+                padding: 8px 12px !important; 
+                font-size: 11pt !important; /* Slightly larger for reading */
+                color: #000 !important; 
+            }
+            th { 
+                background-color: #f0f0f0 !important; 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact; 
+            }
+            
+            /* Adjust badges and colored text for B&W printers */
+            .badge { 
+                border: 1px solid #666; 
+                color: #333 !important; 
+                background: transparent !important; 
+            }
+            .text-danger, .text-primary { 
+                color: #000 !important; 
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+            <a href="/dashboard" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
+            <button onclick="window.print()" class="btn btn-primary"><i class="bi bi-printer"></i> Print Stockcard</button>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0 fw-bold">ITEM STOCKCARD</h4>
+                <span class="fs-5">RMPH ICT Inventory</span>
+            </div>
+            
+            <div class="card-body">
+                
+                <div class="row mb-4 border-bottom pb-3">
+                    <div class="col-md-6">
+                        <h2 class="fw-bold mb-0">{{ item.name }}</h2>
+                        <p class="text-muted mb-1">{{ item.description }}</p>
+                        <span class="badge bg-secondary">{{ item.category }}</span>
+                    </div>
+                    <div class="col-md-6 text-md-end mt-3 mt-md-0">
+                        <p class="mb-1"><strong>Item ID / Code:</strong> {{ item.id }}</p>
+                        <p class="mb-1"><strong>Unit of Measurement:</strong> {{ item.unit }}</p>
+                        <h4 class="mt-2">Current Balance: <span class="text-primary fw-bold">{{ item.quantity }} {{ item.unit }}</span></h4>
+                    </div>
+                </div>
+
+                <h5 class="fw-bold mb-3"><i class="bi bi-clock-history no-print"></i> Release History</h5>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 15%;">Date Released</th>
+                                <th style="width: 15%;">RIS Batch No.</th>
+                                <th style="width: 20%;">Department / Unit</th>
+                                <th style="width: 20%;">Released To</th>
+                                <th style="width: 20%;">Purpose</th>
+                                <th class="text-center" style="width: 10%;">Qty Deducted</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for release in releases %}
+                            <tr>
+                                <td>{{ release.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td><small class="text-muted">{{ release.batch_id[:8] | upper }}</small></td>
+                                <td class="fw-bold">{{ release.department_name }}</td>
+                                <td>{{ release.requested_by }}</td>
+                                <td>{{ release.purpose }}</td>
+                                <td class="text-center text-danger fw-bold">- {{ release.quantity }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">
+                                    No approved releases recorded for this item yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
