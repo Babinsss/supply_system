@@ -2,7 +2,7 @@ import uuid
 import json
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///supplies.db'
@@ -10,6 +10,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = 'super_secret_key_change_this_later'
 
 db = SQLAlchemy(app)
+
+# --- Helper Function for Philippine Time (UTC+8) ---
+def get_pht_time():
+    return datetime.utcnow() + timedelta(hours=8)
 
 # --- DATABASE MODELS ---
 class Supply(db.Model):
@@ -21,8 +25,9 @@ class Supply(db.Model):
     quantity = db.Column(db.Integer, nullable=False, default=0)
     unit = db.Column(db.String(50), nullable=False) 
     reorder_level = db.Column(db.Integer, nullable=False, default=10)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Updated to use PHT
+    created_at = db.Column(db.DateTime, default=get_pht_time)
+    updated_at = db.Column(db.DateTime, default=get_pht_time, onupdate=get_pht_time)
 
 class DepartmentRequest(db.Model):
     __tablename__ = 'department_requests'
@@ -34,7 +39,8 @@ class DepartmentRequest(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     purpose = db.Column(db.String(255), nullable=False)
     status = db.Column(db.String(20), default='Pending') 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Updated to use PHT
+    created_at = db.Column(db.DateTime, default=get_pht_time)
     supply = db.relationship('Supply', backref=db.backref('requests', lazy=True))
 
 # --- ADMIN ROUTES ---

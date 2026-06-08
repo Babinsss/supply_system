@@ -219,15 +219,26 @@
                 {% for title in ['Requested by:', 'Approved by:', 'Issued by:', 'Received by:'] %}
                 <div class="sig-col">
                     <div class="sig-header">{{ title }}</div>
-                    <div class="sig-row"><div class="sig-label">Signature</div><div class="sig-value"></div></div>
+                    <div class="sig-row">
+                        <div class="sig-label">Signature</div>
+                        <div class="sig-value"></div>
+                    </div>
+                    
                     <div class="sig-row">
                         <div class="sig-label">Printed Name</div>
                         <div class="sig-value">
-                            {% if title == 'Requested by:' %}{{ batch_requests[0].requested_by }}
-                            {% elif title == 'Approved by:' %}<span style="font-size: 7px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>HOSPITAL ADMINISTRATOR</span>{% endif %}
+                            {% if title == 'Requested by:' %}{{ batch_requests[0].requested_by }}{% endif %}
                         </div>
                     </div>
-                    <div class="sig-row"><div class="sig-label">Designation</div><div class="sig-value"></div></div>
+                    
+                    <div class="sig-row">
+                        <div class="sig-label">Designation</div>
+                        <div class="sig-value">
+                            {% if title == 'Approved by:' %}
+                                <span style="font-size: 7px; line-height: 1.1;">CHIEF OF HOSPITAL II /<br>HOSPITAL ADMINISTRATOR</span>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
