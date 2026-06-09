@@ -25,7 +25,6 @@ class Supply(db.Model):
     quantity = db.Column(db.Integer, nullable=False, default=0)
     unit = db.Column(db.String(50), nullable=False) 
     reorder_level = db.Column(db.Integer, nullable=False, default=10)
-    # Updated to use PHT
     created_at = db.Column(db.DateTime, default=get_pht_time)
     updated_at = db.Column(db.DateTime, default=get_pht_time, onupdate=get_pht_time)
 
@@ -39,7 +38,6 @@ class DepartmentRequest(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     purpose = db.Column(db.String(255), nullable=False)
     status = db.Column(db.String(20), default='Pending') 
-    # Updated to use PHT
     created_at = db.Column(db.DateTime, default=get_pht_time)
     supply = db.relationship('Supply', backref=db.backref('requests', lazy=True))
 
@@ -51,8 +49,6 @@ def index():
 @app.route('/dashboard')
 def dashboard():
     supplies = Supply.query.all()
-    
-    # Fetch all requests sorted by newest first
     all_requests = DepartmentRequest.query.order_by(DepartmentRequest.created_at.desc()).all()
     
     # Group the requests by batch_id so they appear as one transaction
@@ -69,18 +65,10 @@ def dashboard():
             }
         grouped_batches[req.batch_id]['items'].append(req)
     
-    # Convert dictionary to list for the HTML template
     requests_to_display = list(grouped_batches.values())
-    
-    # Count how many unique batches are pending
     pending_count = len([b for b in requests_to_display if b['status'] == 'Pending'])
     
-    return render_template(
-        'dashboard.html', 
-        items=supplies, 
-        requests=requests_to_display,
-        pending_count=pending_count
-    )
+    return render_template('dashboard.html', items=supplies, requests=requests_to_display, pending_count=pending_count)
 
 @app.route('/add', methods=['POST'])
 def add_item():
@@ -125,21 +113,13 @@ def delete_item(id):
     flash('Item successfully deleted.', 'success')
     return redirect(url_for('dashboard'))
 
-# --- NEW STOCKCARD ROUTE ---
 @app.route('/stockcard/<int:item_id>')
 def stockcard(item_id):
-    # Fetch the specific supply item
     item = Supply.query.get_or_404(item_id)
-    
-    # Fetch all APPROVED requests for this specific item (these are your releases)
-    releases = DepartmentRequest.query.filter_by(
-        supply_id=item_id, 
-        status='Approved'
-    ).order_by(DepartmentRequest.created_at.desc()).all()
-    
+    releases = DepartmentRequest.query.filter_by(supply_id=item_id, status='Approved').order_by(DepartmentRequest.created_at.desc()).all()
     return render_template('stockcard.html', item=item, releases=releases)
 
-@app.route('/process-batch/<batch_id>/<action>')
+@app.route('/process-batch/<batch_id>/<action>', methods=['GET', 'POST'])
 def process_batch(batch_id, action):
     batch_reqs = DepartmentRequest.query.filter_by(batch_id=batch_id).all()
     
@@ -152,13 +132,20 @@ def process_batch(batch_id, action):
         return redirect(url_for('dashboard'))
 
     if action == 'approve':
+        # Check if the admin modified quantities via the modal form
+        if request.method == 'POST':
+            for req in batch_reqs:
+                adj_qty = request.form.get(f'qty_{req.id}', type=int)
+                if adj_qty is not None:
+                    req.quantity = adj_qty 
+
         # Verify stock for ALL items before approving anything
         for req in batch_reqs:
             if req.supply.quantity < req.quantity:
-                flash(f'Cannot approve! Not enough stock for {req.supply.name}.', 'danger')
+                flash(f'Cannot approve! Not enough stock for {req.supply.name}. You tried to release {req.quantity} but only have {req.supply.quantity}.', 'danger')
                 return redirect(url_for('dashboard'))
         
-        # If stock is verified, deduct quantities and approve the batch
+        # Deduct quantities and approve the batch
         for req in batch_reqs:
             req.supply.quantity -= req.quantity
             req.status = 'Approved'
@@ -175,7 +162,6 @@ def process_batch(batch_id, action):
 # --- REAL-TIME & PORTAL ROUTES ---
 @app.route('/api/pending-count')
 def pending_count_api():
-    # Count unique pending batches for the live notification
     pending_batches = db.session.query(DepartmentRequest.batch_id).filter_by(status='Pending').distinct().all()
     return jsonify({'count': len(pending_batches)})
 
@@ -209,7 +195,6 @@ def submit_request():
         db.session.add(new_req)
         
     db.session.commit()
-    
     flash('Your bulk request has been successfully submitted to ICT.', 'success')
     return redirect(url_for('department_portal'))
 
