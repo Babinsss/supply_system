@@ -113,11 +113,60 @@ def delete_item(id):
     flash('Item successfully deleted.', 'success')
     return redirect(url_for('dashboard'))
 
+# --- STOCKCARD WITH MONTHLY FILTER & BALANCES ---
 @app.route('/stockcard/<int:item_id>')
 def stockcard(item_id):
     item = Supply.query.get_or_404(item_id)
-    releases = DepartmentRequest.query.filter_by(supply_id=item_id, status='Approved').order_by(DepartmentRequest.created_at.desc()).all()
-    return render_template('stockcard.html', item=item, releases=releases)
+    
+    # 1. Determine the selected month (default to current month in PHT)
+    month_filter = request.args.get('month', get_pht_time().strftime('%Y-%m'))
+    
+    # 2. Fetch ALL approved releases to accurately calculate running balances
+    all_releases = DepartmentRequest.query.filter_by(
+        supply_id=item_id, 
+        status='Approved'
+    ).order_by(DepartmentRequest.created_at.desc()).all()
+    
+    # 3. Calculate backward running balances based on current actual stock
+    current_bal = item.quantity
+    for release in all_releases:
+        release.running_balance = current_bal
+        current_bal += release.quantity
+        
+    # 4. Filter to only show transactions for the selected month
+    monthly_releases = [r for r in all_releases if r.created_at.strftime('%Y-%m') == month_filter]
+    
+    # 5. Determine "Balance Forwarded" (the starting balance BEFORE this month's transactions)
+    older_releases = [r for r in all_releases if r.created_at.strftime('%Y-%m') < month_filter]
+    if older_releases:
+        balance_forwarded = older_releases[0].running_balance
+    else:
+        balance_forwarded = current_bal # If no older transactions, starting balance is the original full amount
+        
+    # 6. Generate a list of available months for the dropdown selector
+    available_months = sorted(list(set(r.created_at.strftime('%Y-%m') for r in all_releases)), reverse=True)
+    if month_filter not in available_months:
+        available_months.insert(0, month_filter)
+        
+    available_months_formatted = []
+    for m in available_months:
+        date_obj = datetime.strptime(m, '%Y-%m')
+        available_months_formatted.append({
+            'value': m,
+            'label': date_obj.strftime('%B %Y').upper()
+        })
+        
+    current_month_label = datetime.strptime(month_filter, '%Y-%m').strftime('%B %Y').upper()
+    
+    return render_template(
+        'stockcard.html', 
+        item=item, 
+        releases=monthly_releases, 
+        month_filter=month_filter, 
+        available_months=available_months_formatted,
+        current_month_label=current_month_label,
+        balance_forwarded=balance_forwarded
+    )
 
 @app.route('/process-batch/<batch_id>/<action>', methods=['GET', 'POST'])
 def process_batch(batch_id, action):

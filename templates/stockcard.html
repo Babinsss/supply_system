@@ -3,137 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stockcard - {{ item.name }}</title>
+    <title>Stock Card - {{ item.name }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
-        body { background-color: #f8f9fa; }
+        /* --- WEB UI STYLES --- */
+        body { background-color: #525659; font-family: Arial, sans-serif; }
+        .print-toolbar { 
+            position: fixed; top: 0; left: 0; right: 0; height: 50px; 
+            background-color: #323639; display: flex; align-items: center; 
+            justify-content: center; gap: 15px; z-index: 1000; 
+        }
+        .btn-action { 
+            padding: 6px 14px; font-size: 13px; font-weight: bold; 
+            border-radius: 4px; cursor: pointer; text-decoration: none; border: none; 
+        }
+        .btn-print { background-color: #8ab4f8; color: #202124; }
+        .btn-back { background-color: transparent; color: #e8eaed; border: 1px solid #5f6368; }
         
-        /* --- PRINT SPECIFIC STYLES --- */
+        .paper-preview { 
+            background-color: #fff; 
+            /* Long Landscape Dimensions */
+            width: 13in; 
+            min-height: 8.5in; 
+            margin: 70px auto 20px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); 
+            padding: 0.5in;
+            box-sizing: border-box;
+        }
+
+        /* --- FORM STYLES (GENERAL FORM NO. 18) --- */
+        .form-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .form-title {
+            text-align: center;
+            flex-grow: 1;
+            font-size: 18px;
+            letter-spacing: 2px;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+
+        /* Meta Information Table */
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 2px solid #000;
+            margin-bottom: 0;
+            font-size: 10px;
+        }
+        .meta-table td {
+            border: 1px solid #000;
+            padding: 4px 6px;
+            text-transform: uppercase;
+        }
+        .meta-label { font-size: 8px; vertical-align: top; width: 1%; white-space: nowrap; }
+        .meta-value { font-weight: bold; font-size: 11px; }
+
+        /* Main Ledger Table */
+        .ledger-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 2px solid #000;
+            border-top: none;
+            font-size: 9px;
+        }
+        .ledger-table th, .ledger-table td {
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: center;
+        }
+        .ledger-table th {
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 8px;
+        }
+        .ledger-table .desc-col {
+            text-align: left;
+            max-width: 150px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* --- PRINT MEDIA QUERY --- */
         @media print {
-            @page {
-                size: letter portrait;
-                margin: 0.5in; /* Clean 0.5 inch margins around the paper */
-            }
-            body { 
-                background-color: white; 
-                padding: 0; 
-                margin: 0; 
-                color: #000; /* Force black text for better contrast */
-            }
-            .no-print { display: none !important; }
-            
-            /* Remove card styling for a clean document look */
-            .card { border: none !important; box-shadow: none !important; }
-            
-            /* Transform the dark header into a formal document header */
-            .card-header {
-                background-color: transparent !important;
-                color: #000 !important;
-                border-bottom: 2px solid #000 !important;
-                padding: 0 0 10px 0 !important;
-                margin-bottom: 20px !important;
-            }
-            
-            /* FIX THE SCROLLBAR ISSUE */
-            .table-responsive { 
-                overflow-x: visible !important; 
-            }
-            
-            /* Enhance Table Readability on Paper */
-            table { 
-                width: 100% !important; 
-                border-collapse: collapse !important; 
-            }
-            th, td { 
-                border: 1px solid #000 !important; 
-                padding: 8px 12px !important; 
-                font-size: 11pt !important; /* Slightly larger for reading */
-                color: #000 !important; 
-            }
-            th { 
-                background-color: #f0f0f0 !important; 
-                -webkit-print-color-adjust: exact; 
-                print-color-adjust: exact; 
-            }
-            
-            /* Adjust badges and colored text for B&W printers */
-            .badge { 
-                border: 1px solid #666; 
-                color: #333 !important; 
-                background: transparent !important; 
-            }
-            .text-danger, .text-primary { 
-                color: #000 !important; 
+            @page { size: 13in 8.5in; margin: 0.5in; }
+            body { background: none; padding: 0; margin: 0; }
+            .print-toolbar { display: none !important; }
+            .paper-preview { 
+                margin: 0; padding: 0; box-shadow: none; 
+                width: 100%; height: 100%; 
             }
         }
     </style>
 </head>
 <body>
 
-    <div class="container mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-3 no-print">
-            <a href="/dashboard" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
-            <button onclick="window.print()" class="btn btn-primary"><i class="bi bi-printer"></i> Print Stockcard</button>
+    <div class="print-toolbar no-print">
+        
+        <form method="GET" action="/stockcard/{{ item.id }}" class="d-flex align-items-center mb-0 m-0">
+            <label class="text-white me-2 fw-bold" style="font-size: 12px;">VIEW MONTH:</label>
+            <select name="month" class="form-select form-select-sm w-auto" onchange="this.form.submit()" style="font-size: 12px; font-weight: bold; border-radius: 4px;">
+                {% for m in available_months %}
+                    <option value="{{ m.value }}" {% if m.value == month_filter %}selected{% endif %}>
+                        {{ m.label }}
+                    </option>
+                {% endfor %}
+            </select>
+        </form>
+        
+        <div style="width: 2px; border-right: 1px solid #777; height: 30px; margin: 0 5px;"></div>
+        
+        <button onclick="window.print()" class="btn-action btn-print"><i class="bi bi-printer"></i> Print</button>
+        <a href="/dashboard" class="btn-action btn-back">Back to Dashboard</a>
+    </div>
+
+    <div class="paper-preview">
+        
+        <div class="form-header">
+            <div>
+                GENERAL FORM NO. 18<br>
+                <span style="font-weight: normal; font-size: 9px;">Revised January 1992</span>
+            </div>
+            <div class="form-title">
+                STOCK CARD<br>
+                <span style="font-size: 10px; font-weight: normal; letter-spacing: 0;">FOR THE MONTH OF <strong>{{ current_month_label }}</strong></span>
+            </div>
+            <div style="width: 100px;"></div> 
         </div>
 
-        <div class="card shadow-sm">
-            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                <h4 class="mb-0 fw-bold">ITEM STOCKCARD</h4>
-                <span class="fs-5">RMPH ICT Inventory</span>
-            </div>
-            
-            <div class="card-body">
-                
-                <div class="row mb-4 border-bottom pb-3">
-                    <div class="col-md-6">
-                        <h2 class="fw-bold mb-0">{{ item.name }}</h2>
-                        <p class="text-muted mb-1">{{ item.description }}</p>
-                        <span class="badge bg-secondary">{{ item.category }}</span>
-                    </div>
-                    <div class="col-md-6 text-md-end mt-3 mt-md-0">
-                        <p class="mb-1"><strong>Item ID / Code:</strong> {{ item.id }}</p>
-                        <p class="mb-1"><strong>Unit of Measurement:</strong> {{ item.unit }}</p>
-                        <h4 class="mt-2">Current Balance: <span class="text-primary fw-bold">{{ item.quantity }} {{ item.unit }}</span></h4>
-                    </div>
-                </div>
+        <table class="meta-table">
+            <tr>
+                <td class="meta-label">AGENCY/<br>OFFICE:</td>
+                <td colspan="5" class="meta-value">ROXAS MEMORIAL PROVINCIAL HOSPITAL</td>
+            </tr>
+            <tr>
+                <td class="meta-label">ITEM:</td>
+                <td class="meta-value" style="width: 30%;">{{ item.name }}</td>
+                <td class="meta-label">DESCRIPTION:</td>
+                <td class="meta-value" style="width: 35%;">{{ item.description }}</td>
+                <td class="meta-label">LOCATION:</td>
+                <td class="meta-value text-center" style="width: 15%;"></td>
+            </tr>
+            <tr>
+                <td class="meta-label">STOCK NO.</td>
+                <td class="meta-value text-center">{{ item.id }}</td>
+                <td class="meta-label">UNIT:</td>
+                <td class="meta-value">{{ item.unit }}</td>
+                <td class="meta-label">REORDER POINT:</td>
+                <td class="meta-value text-center">{{ item.reorder_level }}</td>
+            </tr>
+        </table>
 
-                <h5 class="fw-bold mb-3"><i class="bi bi-clock-history no-print"></i> Release History</h5>
-                <div class="table-responsive">
-                    <table class="table table-bordered table-striped">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 15%;">Date Released</th>
-                                <th style="width: 15%;">RIS Batch No.</th>
-                                <th style="width: 20%;">Department / Unit</th>
-                                <th style="width: 20%;">Released To</th>
-                                <th style="width: 20%;">Purpose</th>
-                                <th class="text-center" style="width: 10%;">Qty Deducted</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for release in releases %}
-                            <tr>
-                                <td>{{ release.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td><small class="text-muted">{{ release.batch_id[:8] | upper }}</small></td>
-                                <td class="fw-bold">{{ release.department_name }}</td>
-                                <td>{{ release.requested_by }}</td>
-                                <td>{{ release.purpose }}</td>
-                                <td class="text-center text-danger fw-bold">- {{ release.quantity }}</td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="6" class="text-center py-4 text-muted">
-                                    No approved releases recorded for this item yet.
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+        <table class="ledger-table">
+            <thead>
+                <tr>
+                    <th rowspan="2" style="width: 8%;">DATE</th>
+                    <th rowspan="2" style="width: 10%;">REFERENCE</th>
+                    <th rowspan="2" style="width: 22%;">FROM WHOM RECEIVED<br>OR TO WHOM ISSUED</th>
+                    <th colspan="3">RECEIVED</th>
+                    <th colspan="3">ISSUED</th>
+                    <th colspan="3">BALANCE</th>
+                </tr>
+                <tr>
+                    <th style="width: 5%;">QTY</th>
+                    <th style="width: 7%;">UNIT COST</th>
+                    <th style="width: 8%;">TOTAL COST</th>
+                    <th style="width: 5%;">QTY</th>
+                    <th style="width: 7%;">UNIT COST</th>
+                    <th style="width: 8%;">TOTAL COST</th>
+                    <th style="width: 5%;">QTY</th>
+                    <th style="width: 7%;">UNIT COST</th>
+                    <th style="width: 8%;">TOTAL COST</th>
+                </tr>
+            </thead>
+            <tbody>
 
-            </div>
-        </div>
+                <tr style="background-color: #fcfcfc;">
+                    <td style="font-weight: bold; color: #555;">01</td>
+                    <td></td>
+                    <td class="desc-col text-center" style="font-weight: bold; letter-spacing: 1px;">BALANCE FORWARDED</td>
+                    <td></td><td></td><td></td>
+                    <td></td><td></td><td></td>
+                    <td style="font-weight: bold; font-size: 11px;">{{ balance_forwarded }}</td>
+                    <td></td><td></td>
+                </tr>
+
+                {% for release in releases|reverse %}
+                <tr>
+                    <td>{{ release.created_at.strftime('%m/%d/%Y') }}</td>
+                    <td>{{ release.batch_id[:8] | upper }}</td>
+                    <td class="desc-col">{{ release.department_name }} ({{ release.requested_by }})</td>
+                    
+                    <td></td><td></td><td></td>
+                    
+                    <td style="font-weight: bold;">{{ release.quantity }}</td>
+                    <td></td><td></td>
+                    
+                    <td style="font-weight: bold; font-size: 11px;">{{ release.running_balance }}</td>
+                    <td></td><td></td>
+                </tr>
+                {% endfor %}
+
+                {% set min_rows = 13 %}
+                {% set current_rows = releases|length + 1 %}
+                {% set filler = min_rows - current_rows %}
+                {% if filler > 0 %}
+                    {% for i in range(filler) %}
+                    <tr>
+                        <td style="height: 18px;"></td>
+                        <td></td>
+                        <td></td>
+                        <td></td><td></td><td></td>
+                        <td></td><td></td><td></td>
+                        <td></td><td></td><td></td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+
     </div>
 
 </body>
